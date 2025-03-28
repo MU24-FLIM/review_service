@@ -12,7 +12,6 @@ import java.util.Optional;
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
-    //private final MovieRepository movieRepository;
 
     @Autowired
     public ReviewService(ReviewRepository reviewRepository) {
@@ -27,13 +26,6 @@ public class ReviewService {
         return reviewRepository.findAll();
     }
 
-    public Optional<Review> getReview(Long id) {
-        return reviewRepository.findById(id);
-    }
-
-    public Page<Review> getReviewsOfMovie(Long movieId, Pageable pageable) {
-        return reviewRepository.findByMovieId(movieId, pageable);
-    }
 
     public Review updateReview(Long id, Review updatedReview) {
         Optional<Review> existingReviewOptional = reviewRepository.findById(id);

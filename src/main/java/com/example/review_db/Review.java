@@ -10,11 +10,11 @@ public class Review {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-
     private Long id;
 
-
     private Long movieId;
+
+    private Long userId;
 
     private String title;
 
@@ -41,6 +41,14 @@ public class Review {
 
     public void setMovieId(Long movieId) {
         this.movieId = movieId;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public String getTitle() {
