@@ -1,9 +1,11 @@
 package com.example.review_db;
 
 import jakarta.persistence.*;
-//import jakarta.validation.constraints.*;
-//import jakarta.validation.constraints.NotBlank;
-//import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 public class Review {
@@ -12,16 +14,23 @@ public class Review {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotNull
     private Long movieId;
 
+    @NotNull
     private Long userId;
 
+    @NotBlank(message = "Title can not be blank")
+    @Size(min = 2, max = 50, message = "Title must be between 2 and 50 characters")
     private String title;
 
-
+    @NotBlank(message = "Content can not be blank")
+    @Size(min = 2, max = 200, message = "Content must be between 2 and 200 characters")
     private String content;
 
-
+    @NotNull
+    @Min(value = 1, message = "Rating must be at least 1")
+    @Max(value = 5, message = "Rating must not be more than 5")
     private Integer rating;
 
     public Review() {

@@ -43,11 +43,11 @@ public class ReviewController {
     }
 
     @PostMapping
-    public void createReview(@RequestBody Review review){
+    public void createReview(@RequestBody @Valid Review review){
         reviewService.createNewReview(review);
     }
 
-    @GetMapping("/{id}/review")
+    @GetMapping("/{id}/review")//För Fredriks tjänst
     public List<Review> getReviewsByMovieId(@PathVariable Long id) {
         return reviewRepository.findByMovieId(id);
     }
@@ -88,7 +88,7 @@ public Flux<ReviewResponse> getReviewsOfMovie(@PathVariable Long id, Pageable pa
 }
 
 @PutMapping("/{id}")
-public ResponseEntity<Review> updateReview(@PathVariable Long id, @RequestBody Review updatedReview){
+public ResponseEntity<Review> updateReview(@PathVariable Long id, @RequestBody @Valid Review updatedReview){
         Review review = reviewService.updateReview(id, updatedReview);
         if (review != null) {
             return ResponseEntity.ok(review);
