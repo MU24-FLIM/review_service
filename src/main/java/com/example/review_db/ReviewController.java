@@ -3,6 +3,7 @@ package com.example.review_db;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
+import org.apache.coyote.BadRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("reviews")
@@ -33,35 +35,33 @@ public class ReviewController {
     private final WebClient movieClient;
 
     private final ReviewRepository reviewRepository;
-    private final ReviewService reviewService;
 
-    public ReviewController(WebClient.Builder webClientBuilder, ReviewRepository reviewRepository, ReviewService reviewService) {
+
+    public ReviewController(WebClient.Builder webClientBuilder, ReviewRepository reviewRepository) {
         this.reviewRepository = reviewRepository;
-        this.reviewService = reviewService;
         this.userClient = webClientBuilder.baseUrl(USER_CLIENT_URL).build();
         this.movieClient = webClientBuilder.baseUrl(MOVIE_CLIENT_URL).build();
     }
 
-    @PostMapping
-    public void createReview(@RequestBody @Valid Review review){
-        reviewService.createNewReview(review);
-    }
-
-    @GetMapping("/{id}/review")//För Fredriks tjänst
-    public List<Review> getReviewsByMovieId(@PathVariable Long id) {
-        return reviewRepository.findByMovieId(id);
-    }
-
-
-@GetMapping
-public Flux<ReviewResponse> getAllReviews() {
-    return Flux.fromIterable(reviewService.getReviews())
-            .flatMap(review ->
-                    getMovie(review.getMovieId())
-                            .zipWith(getUser(review.getUserId()),
-                                    (movie, user) -> new ReviewResponse(review, movie, user))
-            );
+@PostMapping
+public ResponseEntity<Review> createReview(@RequestBody @Valid Review review) throws BadRequestException {
+  return ResponseEntity.ok(reviewRepository.save(review));
 }
+
+@GetMapping("/{id}/review")//För Fredriks tjänst
+public List<Review> getReviewsByMovieId(@PathVariable Long id) {
+    return reviewRepository.findByMovieId(id);
+}
+
+    @GetMapping
+    public Flux<ReviewResponse> getAllReviews() {
+        return Flux.fromIterable(reviewRepository.findAll())
+                .flatMap(review ->
+                        getMovie(review.getMovieId())
+                                .zipWith(getUser(review.getUserId()),
+                                        (movie, user) -> new ReviewResponse(review, movie, user))
+                );
+    }
 
 @GetMapping("/{id}")
 public Mono<ReviewResponse> getReviewById(@PathVariable Long id) {
@@ -89,17 +89,24 @@ public Flux<ReviewResponse> getReviewsOfMovie(@PathVariable Long id, Pageable pa
 
 @PutMapping("/{id}")
 public ResponseEntity<Review> updateReview(@PathVariable Long id, @RequestBody @Valid Review updatedReview){
-        Review review = reviewService.updateReview(id, updatedReview);
-        if (review != null) {
-            return ResponseEntity.ok(review);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
-}
+    Optional<Review> optionalReview = reviewRepository.findById(id);
+    if (!optionalReview.isPresent()) {
+        return ResponseEntity.notFound().build();
+    }
+    Review review = optionalReview.get();
+    review.setMovieId(updatedReview.getMovieId());
+    review.setUserId(updatedReview.getUserId());
+    review.setTitle(updatedReview.getTitle());
+    review.setContent(updatedReview.getContent());
+    review.setRating(updatedReview.getRating());
+    reviewRepository.save(review);
+        return ResponseEntity.ok(review);
+    }
+
 
 @DeleteMapping("/{id}")
     public void deleteReviewById(@PathVariable Long id){
-        reviewService.deleteReview(id);
+        reviewRepository.deleteById(id);
 }
 
 
@@ -125,8 +132,8 @@ public Mono<Movie> getMovie(Long movieId) {
         return userClient.get()
                 .uri("/users/" + userId)
                 .retrieve()
-                .bodyToMono(User.class)
+                .bodyToMono(UserResponse.class) // Mappa direkt till UserResponse
+                .map(UserResponse::getUser)
                 .onErrorResume(e -> Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")));
     }
-
 }
