@@ -12,11 +12,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
+import javax.naming.ServiceUnavailableException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,18 +72,18 @@ public List<Review> getReviewsByUserId(@PathVariable Long id) {
                 );
     }
 
-@GetMapping("/{id}")
-public Mono<ReviewResponse> getReviewById(@PathVariable Long id) {
-    return Mono.fromCallable(() -> reviewRepository.findById(id))
-            .flatMap(optionalReview -> optionalReview
-                    .map(review ->
-                            getMovie(review.getMovieId())
-                                    .zipWith(getUser(review.getUserId()),
-                                            (movie, user) -> new ReviewResponse(review, movie, user))
-                    )
-                    .orElse(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found")))
-            );
-}
+    @GetMapping("/{id}")
+    public Mono<ReviewResponse> getReviewById(@PathVariable Long id) {
+        return Mono.fromCallable(() -> reviewRepository.findById(id))
+                .flatMap(optionalReview -> optionalReview
+                        .map(review ->
+                                getMovie(review.getMovieId())
+                                        .zipWith(getUser(review.getUserId()),
+                                                (movie, user) -> new ReviewResponse(review, movie, user))
+                        )
+                        .orElse(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found")))
+                );
+    }
 
 
 @GetMapping("/{id}/reviews")
@@ -114,14 +118,13 @@ public ResponseEntity<Review> updateReview(@PathVariable Long id, @RequestBody @
         reviewRepository.deleteById(id);
 }
 
-
 public Mono<Movie> getMovie(Long movieId) {
     logger.info("Fetching movie with ID: " + movieId);
     return movieClient.get()
             .uri("/movies/" + movieId)
             .retrieve()
-            .bodyToMono(Map.class) // Mappa till en generisk Map
-            .map(response -> (Map<String, Object>) response.get("movie")) // Extrahera "movie"-delen
+            .bodyToMono(Map.class)   // Mappa till en generisk Map
+            .map(response -> (Map<String, Object>) response.get("movie"))  // Extrahera "movie"-delen
             .map(movieMap -> {
                 ObjectMapper objectMapper = new ObjectMapper();
                 return objectMapper.convertValue(movieMap, Movie.class);
@@ -129,16 +132,27 @@ public Mono<Movie> getMovie(Long movieId) {
             .doOnNext(movie -> logger.info("Fetched movie: " + movie))
             .onErrorResume(e -> {
                 logger.error("Error fetching movie", e);
-                return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Movie not found"));
+                if (e instanceof WebClientRequestException) {
+                    // Hantera anslutningsfel som indikerar att tjänsten är nere
+                    return Mono.error(new ServiceUnavailableException("Movie service is unavailable"));
+                } else if (e instanceof WebClientResponseException &&
+                        ((WebClientResponseException) e).getStatusCode() == HttpStatus.NOT_FOUND) {
+                    return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Movie not found"));
+                }
+                return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred"));
             });
 }
 
-    public Mono<User> getUser(Long userId) {
-        return userClient.get()
-                .uri("/users/" + userId)
-                .retrieve()
-                .bodyToMono(UserResponse.class) // Mappa direkt till UserResponse
-                .map(UserResponse::getUser)
-                .onErrorResume(e -> Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")));
-    }
+public Mono<User> getUser(Long userId) {
+    return userClient.get()
+            .uri("/users/" + userId)
+            .retrieve()
+            .bodyToMono(UserResponse.class) // Mappa till UserResponse
+            .map(UserResponse::getUser) // Extrahera User-objektet från UserResponse
+            .doOnNext(user -> logger.info("Fetched user: " + user))
+            .onErrorResume(e -> {
+                logger.error("Error fetching user", e);
+                return Mono.error(new ServiceUnavailableException("User service is unavailable"));
+            });
+}
 }
