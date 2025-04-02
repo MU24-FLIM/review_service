@@ -6,7 +6,6 @@ import jakarta.validation.Valid;
 import org.apache.coyote.BadRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import org.springframework.web.server.ResponseStatusException;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -51,6 +51,11 @@ public ResponseEntity<Review> createReview(@RequestBody @Valid Review review) th
 @GetMapping("/{id}/review")//För Fredriks tjänst
 public List<Review> getReviewsByMovieId(@PathVariable Long id) {
     return reviewRepository.findByMovieId(id);
+}
+
+@GetMapping("/{id}/user") // För Ivanas tjänst
+public List<Review> getReviewsByUserId(@PathVariable Long id) {
+        return reviewRepository.findByUserId(id);
 }
 
     @GetMapping
